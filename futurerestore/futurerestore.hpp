@@ -88,6 +88,9 @@ class futurerestore {
     const char *_boot_args = NULL;
 
     bool _skipBlob = false;
+    
+    bool _setibss = false;
+    bool _setibec = false;
 
     bool _enterPwnRecoveryRequested = false;
     bool _rerestoreiOS9 = false;
