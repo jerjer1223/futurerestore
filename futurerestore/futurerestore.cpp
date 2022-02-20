@@ -496,11 +496,7 @@ void futurerestore::enterPwnRecovery(plist_t build_identity, std::string bootarg
     int rv;
     bool cache1 = false;
     bool cache2 = false;
-    std::string img3_end = ".patched.img3";
-    std::string img4_end = ".patched.img4";
-    std::string ibss_name = FUTURERESTORE_TMP_PATH"/ibss.";
-    std::string ibec_name = FUTURERESTORE_TMP_PATH"/ibec.";
-
+    
     /* Assure device is in dfu */
     irecv_device_event_subscribe(&_client->irecv_e_ctx, irecv_event_cb, _client);
     idevice_event_subscribe(idevice_event_cb, _client);
@@ -513,111 +509,39 @@ void futurerestore::enterPwnRecovery(plist_t build_identity, std::string bootarg
     mutex_unlock(&_client->device_event_mutex);
     info("Device found in DFU Mode.\n");
 
-    ibss_name.append(getDeviceBoardNoCopy());
-    ibec_name.append(getDeviceBoardNoCopy());
-    ibss_name.append(".");
-    ibec_name.append(".");
-    ibss_name.append(_client->build);
-    ibec_name.append(_client->build);
-    if(_client->image4supported) {
-        ibss_name.append(img4_end);
-        ibec_name.append(img4_end);
-    } else {
-        ibss_name.append(img3_end);
-        ibec_name.append(img3_end);
-    }
-    if(!_noCache) {
-        ibss = fopen(ibss_name.c_str(), "rb");
-        if (ibss) {
-            fseek(ibss, 0, SEEK_END);
-            iBSS.second = ftell(ibss);
-            fseek(ibss, 0, SEEK_SET);
-            retassure(iBSS.first = (char *) malloc(iBSS.second), "failed to malloc memory for Rose\n");
-            size_t freadRet = 0;
-            retassure((freadRet = fread((char *) iBSS.first, 1, iBSS.second, ibss)) == iBSS.second,
-                      "failed to load iBSS. size=%zu but fread returned %zu\n", iBSS.second, freadRet);
-            fclose(ibss);
-            cache1 = true;
-        }
-        ibec = fopen(ibec_name.c_str(), "rb");
-        if (ibec) {
-            fseek(ibec, 0, SEEK_END);
-            iBEC.second = ftell(ibec);
-            fseek(ibec, 0, SEEK_SET);
-            retassure(iBEC.first = (char *) malloc(iBEC.second), "failed to malloc memory for Rose\n");
-            size_t freadRet = 0;
-            retassure((freadRet = fread((char *) iBEC.first, 1, iBEC.second, ibec)) == iBEC.second,
-                      "failed to load iBEC. size=%zu but fread returned %zu\n", iBEC.second, freadRet);
-            fclose(ibec);
-            cache2 = true;
-        }
-    }
-
-    /* Patch bootloaders */
-    if(!cache1 && !cache2) {
-        try {
-            std::string board = getDeviceBoardNoCopy();
-            info("Getting firmware keys for: %s\n", board.c_str());
-            if(board == "n71ap" || board == "n71map" || board == "n69ap" || board == "n69uap" || board == "n66ap" || board == "n66map") {
-                if(!_noIBSS && !cache1) {
-                    iBSSKeys = libipatcher::getFirmwareKey(_client->device->product_type, _client->build, "iBSS", board);
-                }
-                if(!cache2) {
-                    iBECKeys = libipatcher::getFirmwareKey(_client->device->product_type, _client->build, "iBEC", board);
-                }
-            } else {
-                if(!_noIBSS && !cache1) {
-                    iBSSKeys = libipatcher::getFirmwareKey(_client->device->product_type, _client->build, "iBSS");
-                }
-                if(!cache2) {
-                    iBECKeys = libipatcher::getFirmwareKey(_client->device->product_type, _client->build, "iBEC");
-                }
-            }
-        } catch (tihmstar::exception &e) {
-            reterror("getting keys failed with error: %d (%s). Are keys publicly available?",e.code(),e.what());
-        }
-    }
-
-    if(!iBSS.first && !_noIBSS){
-        info("Patching iBSS\n");
-        iBSS = getIPSWComponent(_client, build_identity, "iBSS");
-        iBSS = move(libipatcher::patchiBSS((char*)iBSS.first, iBSS.second, iBSSKeys));
-    }
-    if(!iBEC.first) {
-        info("Patching iBEC\n");
-        iBEC = getIPSWComponent(_client, build_identity, "iBEC");
-        iBEC = move(libipatcher::patchiBEC((char*)iBEC.first, iBEC.second, iBECKeys, std::move(bootargs)));
-    }
-
-    if (_client->image4supported) {
-        /* if this is 64-bit, we need to back IM4P to IMG4
-           also due to the nature of iBoot64Patchers sigpatches we need to stich a valid signed im4m to it (but nonce is ignored) */
-        if(!cache1 && !_noIBSS) {
-            info("Repacking patched iBSS as IMG4\n");
-            iBSS = move(libipatcher::packIM4PToIMG4(iBSS.first, iBSS.second, _im4ms[0].first, _im4ms[0].second));
-        }
-        if(!cache2) {
-            info("Repacking patched iBEC as IMG4\n");
-            iBEC = move(libipatcher::packIM4PToIMG4(iBEC.first, iBEC.second, _im4ms[0].first, _im4ms[0].second));
-        }
-    }
-
-    if(!_noIBSS) {
-        retassure(ibss = fopen(ibss_name.c_str(), "wb"), "can't save patched ibss at %s\n", ibss_name.c_str());
-        retassure(rv = fwrite(iBSS.first, iBSS.second, 1, ibss), "can't save patched ibss at %s\n", ibss_name.c_str());
-        fflush(ibss);
+    ibss = fopen(_iBSSPath, "rb");
+    if (ibss) {
+        fseek(ibss, 0, SEEK_END);
+        iBSS.second = ftell(ibss);
+        fseek(ibss, 0, SEEK_SET);
+        retassure(iBSS.first = (char *) malloc(iBSS.second), "failed to malloc memory for Rose\n");
+        size_t freadRet = 0;
+        retassure((freadRet = fread((char *) iBSS.first, 1, iBSS.second, ibss)) == iBSS.second,
+                  "failed to load iBSS. size=%zu but fread returned %zu\n", iBSS.second, freadRet);
         fclose(ibss);
+        cache1 = true;
     }
-    retassure(ibec = fopen(ibec_name.c_str(), "wb"), "can't save patched ibec at %s\n", ibec_name.c_str());
-    retassure(rv = fwrite(iBEC.first, iBEC.second, 1, ibec), "can't save patched ibec at %s\n", ibec_name.c_str());
-    fflush(ibec);
-    fclose(ibec);
+    ibec = fopen(_iBECPath, "rb");
+    if (ibec) {
+        fseek(ibec, 0, SEEK_END);
+        iBEC.second = ftell(ibec);
+        fseek(ibec, 0, SEEK_SET);
+        retassure(iBEC.first = (char *) malloc(iBEC.second), "failed to malloc memory for Rose\n");
+        size_t freadRet = 0;
+        retassure((freadRet = fread((char *) iBEC.first, 1, iBEC.second, ibec)) == iBEC.second,
+                  "failed to load iBEC. size=%zu but fread returned %zu\n", iBEC.second, freadRet);
+        fclose(ibec);
+        cache2 = true;
+    }
+    
+
 
     /* Send and boot bootloaders */
     irecv_error_t err = IRECV_E_UNKNOWN_ERROR;
     if(!_noIBSS) {
         /* send iBSS */
         info("Sending %s (%lu bytes)...\n", "iBSS", iBSS.second);
+        info("NOTE: Using custom iBSS: %s\n", _iBSSPath);
         mutex_lock(&_client->device_event_mutex);
         err = irecv_send_buffer(_client->dfu->client, (unsigned char *) (char *) iBSS.first,
                                 (unsigned long) iBSS.second, 1);
@@ -640,6 +564,7 @@ void futurerestore::enterPwnRecovery(plist_t build_identity, std::string bootarg
             retassure(irecv_usb_set_configuration(_client->dfu->client, 1) >= 0, "ERROR: set configuration failed\n");
             /* send iBEC */
             info("Sending %s (%lu bytes)...\n", "iBEC", iBEC.second);
+            info("NOTE: Using custom iBEC: %s\n", _iBECPath);
             mutex_lock(&_client->device_event_mutex);
             err = irecv_send_buffer(_client->dfu->client, (unsigned char*)(char*)iBEC.first, (unsigned long)iBEC.second, 1);
             retassure(err == IRECV_E_SUCCESS,"ERROR: Unable to send %s component: %s\n", "iBEC", irecv_strerror(err));
@@ -722,13 +647,14 @@ void futurerestore::enterPwnRecovery(plist_t build_identity, std::string bootarg
                 reterror("Failed to get apnonce from device!");
             }
             assure(!irecv_send_command(_client->recovery->client, "bgcolor 255 255 0"));
-            retassure(_setNonce || memcmp(_client->nonce, nonceelem.payload(), _client->nonce_size) == 0, "ApNonce from device doesn't match IM4M nonce after applying ApNonce hax. Aborting!");
+            //retassure(_setNonce || memcmp(_client->nonce, nonceelem.payload(), _client->nonce_size) == 0, "ApNonce from device doesn't match IM4M nonce after applying ApNonce hax. Aborting!");
         } else {
             getDeviceMode(true);
             retassure(((dfu_client_new(_client) == IRECV_E_SUCCESS) || (mutex_unlock(&_client->device_event_mutex),0)), "Failed to connect to device in Recovery Mode!");
             retassure(irecv_usb_set_configuration(_client->dfu->client, 1) >= 0, "ERROR: set configuration failed\n");
             /* send iBEC */
             info("Sending %s (%lu bytes)...\n", "iBEC", iBEC.second);
+            info("NOTE: Using custom iBEC: %s\n", _iBECPath);
             mutex_lock(&_client->device_event_mutex);
             err = irecv_send_buffer(_client->dfu->client, (unsigned char*)(char*)iBEC.first, (unsigned long)iBEC.second, 1);
             retassure(err == IRECV_E_SUCCESS,"ERROR: Unable to send %s component: %s\n", "iBEC", irecv_strerror(err));
@@ -757,11 +683,13 @@ void futurerestore::enterPwnRecovery(plist_t build_identity, std::string bootarg
         } else {
             reterror("Failed to set nonce generator: %s! Unknown nonce size: %d\n", generator.c_str(), _client->nonce_size);
         }
+        /*
         for(int i = 0; i < _client->nonce_size; i++) {
             if(*(uint8_t *)(nonce + i) != *(uint8_t *)(_client->nonce + i)) {
                 reterror("Failed to set nonce generator: %s!\n", generator.c_str());
             }
         }
+        */
         info("Successfully set nonce generator: %s\n", generator.c_str());
 
         if(_setNonce) {
@@ -1719,18 +1647,31 @@ void futurerestore::setBasebandPath(const char *basebandPath){
     _basebandPath = basebandPath;
     fclose(fbb);
 }
+void futurerestore::setiBSSPath(const char *iBSSPath) {
+    FILE *fbb = NULL;
 
+    retassure(fbb = fopen(iBSSPath, "rb"), "failed to read iBSS img4");
+    _iBSSPath = iBSSPath;
+    fclose(fbb);
+}
+void futurerestore::setiBECPath(const char *iBECPath) {
+    FILE *fbb = NULL;
+
+    retassure(fbb = fopen(iBECPath, "rb"), "failed to read iBEC img4");
+    _iBECPath = iBECPath;
+    fclose(fbb);
+}
 void futurerestore::setRamdiskPath(const char *ramdiskPath) {
     FILE *fbb = NULL;
 
-    retassure(fbb = fopen(ramdiskPath, "rb"), "failed to read ramdisk");
+    retassure(fbb = fopen(ramdiskPath, "rb"), "failed to read ramdisk im4p");
     _ramdiskPath = ramdiskPath;
     fclose(fbb);
 }
 void futurerestore::setKernelPath(const char *kernelPath) {
     FILE *fbb = NULL;
 
-    retassure(fbb = fopen(kernelPath, "rb"), "failed to read kernel");
+    retassure(fbb = fopen(kernelPath, "rb"), "failed to read kernel im4p");
     _kernelPath = kernelPath;
     fclose(fbb);
 }
