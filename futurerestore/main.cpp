@@ -62,7 +62,7 @@ static struct option longopts[] = {
         { NULL, 0, NULL, 0 }
 };
 
-#define FLAG_WAIT               1 << 0
+##define FLAG_WAIT              1 << 0
 #define FLAG_UPDATE             1 << 1
 #define FLAG_LATEST_SEP         1 << 2
 #define FLAG_LATEST_BASEBAND    1 << 3
@@ -71,13 +71,15 @@ static struct option longopts[] = {
 #define FLAG_NO_IBSS            1 << 6
 #define FLAG_RESTORE_RAMDISK    1 << 7
 #define FLAG_RESTORE_KERNEL     1 << 8
-#define FLAG_IBSS_IMG4          1 << 7
-#define FLAG_IBEC_IMG4          1 << 8
 #define FLAG_SET_NONCE          1 << 9
 #define FLAG_SERIAL             1 << 10
 #define FLAG_BOOT_ARGS          1 << 11
 #define FLAG_SKIP_BLOB          1 << 13
 #define FLAG_NO_RESTORE_FR      1 << 14
+#define FLAG_IBSS_IMG4          1 << 15
+#define FLAG_IBEC_IMG4          1 << 16
+
+
 void cmd_help(){
     printf("Usage: futurerestore [OPTIONS] iPSW\n");
     printf("Allows restoring to non-matching firmware with custom SEP+baseband\n");
