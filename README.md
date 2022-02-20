@@ -53,7 +53,7 @@ FutureRestore is a modified idevicerestore wrapper, which allows manually specif
 
   If you are cloning this repository you may run:
 
-  ```git clone https://github.com/m1stadev/futurerestore --recursive```
+  ```git clone -b test --recursive https://github.com/Mini-Exploit/futurerestore```
  
   which will clone these submodules for you.
 
