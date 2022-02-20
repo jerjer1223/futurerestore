@@ -55,7 +55,8 @@ static struct option longopts[] = {
         { "set-nonce",          optional_argument,      NULL, '7' },
         { "serial",             no_argument,            NULL, '8' },
         { "boot-args",          required_argument,      NULL, '9' },
-        { "no-cache",           no_argument,            NULL, 'a' },
+        { "ibss-img4",          required_argument,      NULL, 'g'},
+        { "ibec-img4",          required_argument,      NULL, 'f'},
         { "skip-blob",          no_argument,            NULL, 'c' },
 #endif
         { NULL, 0, NULL, 0 }
@@ -70,10 +71,11 @@ static struct option longopts[] = {
 #define FLAG_NO_IBSS            1 << 6
 #define FLAG_RESTORE_RAMDISK    1 << 7
 #define FLAG_RESTORE_KERNEL     1 << 8
+#define FLAG_IBSS_IMG4          1 << 7
+#define FLAG_IBEC_IMG4          1 << 8
 #define FLAG_SET_NONCE          1 << 9
 #define FLAG_SERIAL             1 << 10
 #define FLAG_BOOT_ARGS          1 << 11
-#define FLAG_NO_CACHE           1 << 12
 #define FLAG_SKIP_BLOB          1 << 13
 #define FLAG_NO_RESTORE_FR      1 << 14
 void cmd_help(){
@@ -94,11 +96,12 @@ void cmd_help(){
     printf("      --no-ibss\t\t\tRestoring devices with Odysseus method. For checkm8/iPwnder32 specifically, bootrom needs to be patched already with unless iPwnder.\n");
     printf("      --rdsk PATH\t\tSet custom restore ramdisk for entering restoremode(requires use-pwndfu)\n");
     printf("      --rkrn PATH\t\tSet custom restore kernelcache for entering restoremode(requires use-pwndfu)\n");
+    printf("      --ibss-img4 PATH\t\tSet custom iBSS for custom iBEC\n");
+    printf("      --ibec-img4 PATH\t\tSet custom iBEC for entering pwnRecovery\n");
     printf("      --set-nonce\t\tSet custom nonce from your blob then exit recovery(requires use-pwndfu)\n");
     printf("      --set-nonce=0xNONCE\tSet custom nonce then exit recovery(requires use-pwndfu)\n");
     printf("      --serial\t\t\tEnable serial during boot(requires serial cable and use-pwndfu)\n");
     printf("      --boot-args\t\tSet custom restore boot-args(PROCEED WITH CAUTION)(requires use-pwndfu)\n");
-    printf("      --no-cache\t\tDisable cached patched iBSS/iBEC(requires use-pwndfu)\n");
     printf("      --skip-blob\t\tSkip SHSH blob validation(PROCEED WITH CAUTION)(requires use-pwndfu)\n");
 #endif
 
@@ -131,6 +134,7 @@ int main_r(int argc, const char * argv[]) {
     printf("%s\n",libipatcher::version());
     printf("Odysseus for 32-bit support: yes\n");
     printf("Odysseus for 64-bit support: %s\n",(libipatcher::has64bitSupport() ? "yes" : "no"));
+    printf("Custom bootchain: yes\n");
 #else
     printf("Odysseus support: no\n");
 #endif
@@ -152,6 +156,8 @@ int main_r(int argc, const char * argv[]) {
     const char *bootargs = NULL;
     const char *ramdiskPath = NULL;
     const char *kernelPath = NULL;
+    const char *ibsspath = NULL;
+    const char *ibecpath = NULL;
     const char *custom_nonce = NULL;
 
     vector<const char*> apticketPaths;
@@ -228,11 +234,16 @@ int main_r(int argc, const char * argv[]) {
                 flags |= FLAG_BOOT_ARGS;
                 bootargs = (optarg) ? optarg : NULL;
                 break;
-            case 'a': // long option: "no-cache";
-                flags |= FLAG_NO_CACHE;
-                break;
             case 'c': // long option: "skip-blob";
                 flags |= FLAG_SKIP_BLOB;
+                break;
+            case 'g': // long option: "ibss-img4"
+                flags |= FLAG_IBSS_IMG4;
+                ibsspath = optarg;
+                break;
+            case 'f': // long option: "ibec-img4"
+                flags |= FLAG_IBEC_IMG4;
+                ibecpath = optarg;
                 break;
 #endif
             case 'e': // long option: "exit-recovery"; can be called as short option
@@ -279,20 +290,24 @@ int main_r(int argc, const char * argv[]) {
         retassure((flags & FLAG_IS_PWN_DFU),"--rdsk requires --use-pwndfu\n");
     if(flags & FLAG_RESTORE_KERNEL)
         retassure((flags & FLAG_IS_PWN_DFU),"--rkrn requires --use-pwndfu\n");
+    if(flags & FLAG_IBSS_IMG4)
+        retassure((flags & FLAG_IS_PWN_DFU), "--ibss-img4 requires --use-pwndfu\n");
+    if(flags & FLAG_IBEC_IMG4)
+        retassure((flags & FLAG_IS_PWN_DFU), "--ibec-img4 requires --use-pwndfu\n");
     if(flags & FLAG_SET_NONCE)
         retassure((flags & FLAG_IS_PWN_DFU),"--set-nonce requires --use-pwndfu\n");
     if(flags & FLAG_SET_NONCE && client.is32bit())
         error("--set-nonce not supported on 32bit devices.\n");
     if(flags & FLAG_RESTORE_RAMDISK)
         retassure((flags & FLAG_RESTORE_KERNEL),"--rdsk requires --rkrn\n");
+    if(flags & FLAG_IBSS_IMG4)
+        retassure((flags & FLAG_IBEC_IMG4), "--ibss-img4 requires --ibec-img4\n");
     if(flags & FLAG_SERIAL) {
         retassure((flags & FLAG_IS_PWN_DFU),"--serial requires --use-pwndfu\n");
         retassure(!(flags & FLAG_BOOT_ARGS),"--serial conflicts with --boot-args\n");
     }
     if(flags & FLAG_BOOT_ARGS)
         retassure((flags & FLAG_IS_PWN_DFU),"--boot-args requires --use-pwndfu\n");
-    if(flags & FLAG_NO_CACHE)
-        retassure((flags & FLAG_IS_PWN_DFU),"--no-cache requires --use-pwndfu\n");
     if(flags & FLAG_SKIP_BLOB)
         retassure((flags & FLAG_IS_PWN_DFU),"--skip-blob requires --use-pwndfu\n");
 
@@ -337,16 +352,20 @@ int main_r(int argc, const char * argv[]) {
             client.loadKernel(kernelPath);
         }
 
+        if(flags & FLAG_IBSS_IMG4) {
+            client.setiBSSPath(ibsspath);
+        }
+        
+        if(flags & FLAG_IBEC_IMG4) {
+            client.setiBECPath(ibecpath);
+        }
+        
         if(flags & FLAG_SET_NONCE) {
             client.setNonce(custom_nonce);
         }
 
         if(flags & FLAG_BOOT_ARGS) {
             client.setBootArgs(bootargs);
-        }
-
-        if(flags & FLAG_NO_CACHE) {
-            client.disableCache();
         }
 
         if(flags & FLAG_SKIP_BLOB) {
