@@ -97,8 +97,8 @@ void cmd_help(){
     printf("      --no-ibss\t\t\tRestoring devices with Odysseus method. For checkm8/iPwnder32 specifically, bootrom needs to be patched already with unless iPwnder.\n");
     printf("      --rdsk PATH\t\tSet custom restore ramdisk for entering restoremode(requires use-pwndfu)\n");
     printf("      --rkrn PATH\t\tSet custom restore kernelcache for entering restoremode(requires use-pwndfu)\n");
-    printf("      --ibss-img4 PATH\t\tSet custom iBSS for custom iBEC\n");
-    printf("      --ibec-img4 PATH\t\tSet custom iBEC for entering pwnRecovery\n");
+    printf("      --ibss-img4 PATH\t\tSet custom iBSS for entering pwnRecovery(requires use-pwndfu)\n");
+    printf("      --ibec-img4 PATH\t\tSet custom iBEC for entering pwnRecovery(requires use-pwndfu)\n");
     printf("      --set-nonce\t\tSet custom nonce from your blob then exit recovery(requires use-pwndfu)\n");
     printf("      --set-nonce=0xNONCE\tSet custom nonce then exit recovery(requires use-pwndfu)\n");
     printf("      --serial\t\t\tEnable serial during boot(requires serial cable and use-pwndfu)\n");
