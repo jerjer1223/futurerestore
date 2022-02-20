@@ -62,7 +62,7 @@ static struct option longopts[] = {
         { NULL, 0, NULL, 0 }
 };
 
-##define FLAG_WAIT              1 << 0
+#define FLAG_WAIT               1 << 0
 #define FLAG_UPDATE             1 << 1
 #define FLAG_LATEST_SEP         1 << 2
 #define FLAG_LATEST_BASEBAND    1 << 3
@@ -78,7 +78,6 @@ static struct option longopts[] = {
 #define FLAG_NO_RESTORE_FR      1 << 14
 #define FLAG_IBSS_IMG4          1 << 15
 #define FLAG_IBEC_IMG4          1 << 16
-
 
 void cmd_help(){
     printf("Usage: futurerestore [OPTIONS] iPSW\n");
@@ -302,8 +301,12 @@ int main_r(int argc, const char * argv[]) {
         error("--set-nonce not supported on 32bit devices.\n");
     if(flags & FLAG_RESTORE_RAMDISK)
         retassure((flags & FLAG_RESTORE_KERNEL),"--rdsk requires --rkrn\n");
+    if(flags & FLAG_RESTORE_KERNEL)
+        retassure((flags & FLAG_RESTORE_RAMDISK),"--rkrn requires --rdsk\n");
     if(flags & FLAG_IBSS_IMG4)
         retassure((flags & FLAG_IBEC_IMG4), "--ibss-img4 requires --ibec-img4\n");
+    if(flags & FLAG_IBEC_IMG4)
+        retassure((flags & FLAG_IBSS_IMG4), "--ibec-img4 requires --ibss-img4\n");
     if(flags & FLAG_SERIAL) {
         retassure((flags & FLAG_IS_PWN_DFU),"--serial requires --use-pwndfu\n");
         retassure(!(flags & FLAG_BOOT_ARGS),"--serial conflicts with --boot-args\n");
