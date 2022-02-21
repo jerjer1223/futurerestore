@@ -139,6 +139,8 @@ public:
     void setBasebandPath(const char *basebandPath);
     void setiBSSPath(const char *iBSSPath);
     void setiBECPath(const char *iBECPath);
+    void setiBSSbool() {_setibss = true;};
+    void setiBECbool() {_setibec = true;};
     void setRamdiskPath(const char *ramdiskPath);
     void setKernelPath(const char *kernelPath);
     void setNonce(const char *custom_nonce){_custom_nonce = custom_nonce;};
