@@ -358,17 +358,19 @@ int main_r(int argc, const char * argv[]) {
         }
 
         if(flags & FLAG_IBSS_IMG4) {
+            client.setiBSSbool();
             client.setiBSSPath(ibsspath);
         }
         
         if(flags & FLAG_IBEC_IMG4) {
+            client.setiBECbool();
             client.setiBECPath(ibecpath);
         }
         
         if(flags & FLAG_SET_NONCE) {
             client.setNonce(custom_nonce);
         }
-
+        
         if(flags & FLAG_BOOT_ARGS) {
             client.setBootArgs(bootargs);
         }
@@ -376,11 +378,11 @@ int main_r(int argc, const char * argv[]) {
         if(flags & FLAG_SKIP_BLOB) {
             client.skipBlobValidation();
         }
-
-        if (flags & FLAG_LATEST_SEP){
+        
+        if (flags & FLAG_LATEST_SEP && !(flags & FLAG_SET_NONCE)){
             info("user specified to use latest signed SEP\n");
             client.loadLatestSep();
-        }else if (!client.is32bit()){
+        }else if (!client.is32bit() && !(flags & FLAG_SET_NONCE)){
             client.loadSep(sepPath);
             client.setSepManifestPath(sepManifestPath);
         }
@@ -401,10 +403,10 @@ int main_r(int argc, const char * argv[]) {
             }
             printf("\n");
         }else{
-            if (flags & FLAG_LATEST_BASEBAND){
+            if (flags & FLAG_LATEST_BASEBAND && !(flags & FLAG_SET_NONCE)){
                 info("user specified to use latest signed baseband\n");
                 client.loadLatestBaseband();
-            }else{
+            }else if (!(flags & FLAG_LATEST_BASEBAND) && !(flags & FLAG_SET_NONCE)){
                 client.setBasebandPath(basebandPath);
                 client.setBasebandManifestPath(basebandManifestPath);
                 printf("Did set SEP+baseband path and firmware\n");
