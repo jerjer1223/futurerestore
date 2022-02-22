@@ -1200,7 +1200,7 @@ void futurerestore::doRestore(const char *ipsw){
         }
     }else if (!_rerestoreiOS9){
 
-        /* now we load the iBEC */
+        /*
         retassure(!recovery_send_ibec(client, build_identity),"ERROR: Unable to send iBEC\n");
 
         printf("waiting for device to reconnect... ");
@@ -1217,6 +1217,7 @@ void futurerestore::doRestore(const char *ipsw){
         cond_wait_timeout(&client->device_event_cond, &client->device_event_mutex, 10000);
         retassure((client->mode == MODE_RECOVERY || (mutex_unlock(&client->device_event_mutex),0)), "Device did not disconnect. Possibly invalid iBEC. Reset device and try again");
         mutex_unlock(&client->device_event_mutex);
+        */
     }
 
     retassure(client->mode == MODE_RECOVERY, "failed to reconnect to device in recovery (iBEC) mode\n");
