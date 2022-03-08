@@ -1733,7 +1733,7 @@ void futurerestore::setiBSSPath(const char *iBSSPath) {
     fclose(fbb);
 }
 void futurerestore::setiBECPath(const char *iBECPath) {
-    _setibec = false;
+    _setibec = true;
     FILE *fbb = NULL;
 
     retassure(fbb = fopen(iBECPath, "rb"), "failed to read iBEC img4");
