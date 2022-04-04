@@ -61,6 +61,7 @@ class futurerestore {
     bool _setNonce = false;
     bool _serial = false;
     bool _noRestore = false;
+    bool _ota = false;
     
     char *_firmwareJson = NULL;
     jssytok_t *_firmwareTokens = NULL;;
@@ -97,6 +98,7 @@ class futurerestore {
     //methods
     void enterPwnRecovery(plist_t build_identity, std::string bootargs);
     void enterPwnRecovery2(plist_t build_identity, std::string bootargs = "");
+    void enterPwnRecovery3();
     
 public:
     futurerestore(bool isUpdateInstall = false, bool isPwnDfu = false, bool noIBSS = false, bool setNonce = false, bool serial = false, bool noRestore = false);
@@ -141,6 +143,7 @@ public:
     void setiBECPath(const char *iBECPath);
     void setiBSSbool() {_setibss = true;};
     void setiBECbool() {_setibec = true;};
+    void setOTAbool() {_ota = true;};
     void setRamdiskPath(const char *ramdiskPath);
     void setKernelPath(const char *kernelPath);
     void setNonce(const char *custom_nonce){_custom_nonce = custom_nonce;};
