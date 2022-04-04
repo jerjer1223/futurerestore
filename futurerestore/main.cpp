@@ -57,6 +57,7 @@ static struct option longopts[] = {
         { "boot-args",          required_argument,      NULL, '9' },
         { "ibss-img4",          required_argument,      NULL, 'g'},
         { "ibec-img4",          required_argument,      NULL, 'f'},
+        {"ota",                 no_argument,            NULL, 'o'},
         { "skip-blob",          no_argument,            NULL, 'c' },
 #endif
         { NULL, 0, NULL, 0 }
@@ -78,6 +79,7 @@ static struct option longopts[] = {
 #define FLAG_NO_RESTORE_FR      1 << 14
 #define FLAG_IBSS_IMG4          1 << 15
 #define FLAG_IBEC_IMG4          1 << 16
+#define FLAG_OTA                1 << 17
 
 void cmd_help(){
     printf("Usage: futurerestore [OPTIONS] iPSW\n");
@@ -99,6 +101,7 @@ void cmd_help(){
     printf("      --rkrn PATH\t\tSet custom restore kernelcache for entering restoremode(requires use-pwndfu)\n");
     printf("      --ibss-img4 PATH\t\tSet custom iBSS for entering pwnRecovery(requires use-pwndfu)\n");
     printf("      --ibec-img4 PATH\t\tSet custom iBEC for entering pwnRecovery(requires use-pwndfu)\n");
+    printf("      --ota\t\tenter pwnRecovery for OTA restore(does not require a generator in signing ticket)(requires --ibss-img4 and --ibec-img4)\n");
     printf("      --set-nonce\t\tSet custom nonce from your blob then exit recovery(requires use-pwndfu)\n");
     printf("      --set-nonce=0xNONCE\tSet custom nonce then exit recovery(requires use-pwndfu)\n");
     printf("      --serial\t\t\tEnable serial during boot(requires serial cable and use-pwndfu)\n");
@@ -117,6 +120,7 @@ void cmd_help(){
     printf("  -p, --baseband-manifest PATH\tBuildManifest for requesting baseband ticket\n");
     printf("      --no-baseband\t\tSkip checks and don't flash baseband\n");
     printf("                   \t\tOnly use this for device without a baseband (eg. iPod touch or some Wi-Fi only iPads)\n\n");
+    printf("enterPwnrecovery3()\n");
 }
 
 using namespace std;
@@ -145,6 +149,7 @@ int main_r(int argc, const char * argv[]) {
     long flags = 0;
     bool exitRecovery = false;
     bool noRestore = false;
+    bool ota = false;
 
     int isSepManifestSigned = 0;
     int isBasebandSigned = 0;
@@ -246,6 +251,10 @@ int main_r(int argc, const char * argv[]) {
                 flags |= FLAG_IBEC_IMG4;
                 ibecpath = optarg;
                 break;
+            case 'o': // long option: "ota"
+                flags |= FLAG_OTA;
+                break;
+                
 #endif
             case 'e': // long option: "exit-recovery"; can be called as short option
                 exitRecovery = true;
@@ -307,6 +316,10 @@ int main_r(int argc, const char * argv[]) {
         retassure((flags & FLAG_IBEC_IMG4), "--ibss-img4 requires --ibec-img4\n");
     if(flags & FLAG_IBEC_IMG4)
         retassure((flags & FLAG_IBSS_IMG4), "--ibec-img4 requires --ibss-img4\n");
+    if(flags & FLAG_OTA)
+        retassure((flags & FLAG_IBSS_IMG4), "--ota requires --ibss-img4\n");
+    if(flags & FLAG_OTA)
+        retassure((flags & FLAG_IBEC_IMG4), "--ota requires --ibec-img4\n");
     if(flags & FLAG_SERIAL) {
         retassure((flags & FLAG_IS_PWN_DFU),"--serial requires --use-pwndfu\n");
         retassure(!(flags & FLAG_BOOT_ARGS),"--serial conflicts with --boot-args\n");
@@ -367,6 +380,10 @@ int main_r(int argc, const char * argv[]) {
             client.setiBECPath(ibecpath);
         }
         
+        if(flags & FLAG_OTA) {
+            client.setOTAbool();
+        }
+        
         if(flags & FLAG_SET_NONCE) {
             client.setNonce(custom_nonce);
         }
@@ -378,6 +395,7 @@ int main_r(int argc, const char * argv[]) {
         if(flags & FLAG_SKIP_BLOB) {
             client.skipBlobValidation();
         }
+        
         
         if (flags & FLAG_LATEST_SEP){
             info("user specified to use latest signed SEP\n");
