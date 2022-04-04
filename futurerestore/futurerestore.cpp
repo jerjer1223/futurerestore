@@ -482,6 +482,86 @@ pair<ptr_smart<char*>, size_t> getIPSWComponent(struct idevicerestore_client_t* 
     return {(char*)component_data,component_size};
 }
 
+void futurerestore::enterPwnRecovery3() {
+    FILE *ibss = NULL;
+    FILE *ibec = NULL;
+    pair<ptr_smart<char*>, size_t> iBSS;
+    pair<ptr_smart<char*>, size_t> iBEC;
+    irecv_device_event_subscribe(&_client->irecv_e_ctx, irecv_event_cb, _client);
+    idevice_event_subscribe(idevice_event_cb, _client);
+    _client->idevice_e_ctx = (void *)idevice_event_cb;
+    getDeviceMode(true);
+    mutex_lock(&_client->device_event_mutex);
+    cond_wait_timeout(&_client->device_event_cond, &_client->device_event_mutex, 1000);
+    retassure(((_client->mode == MODE_DFU) || (mutex_unlock(&_client->device_event_mutex),0)), "Device isn't in DFU mode!");
+    retassure(((dfu_client_new(_client) == IRECV_E_SUCCESS) || (mutex_unlock(&_client->device_event_mutex),0)), "Failed to connect to device in DFU Mode!");
+    mutex_unlock(&_client->device_event_mutex);
+    info("Device found in DFU Mode.\n");
+    if(_client->device->chip_id != 0x8960) {
+        reterror("--ota is only available for device with CPID 8960\n");
+    }
+    ibss = fopen(_iBSSPath, "rb");
+    if (ibss) {
+        fseek(ibss, 0, SEEK_END);
+        iBSS.second = ftell(ibss);
+        fseek(ibss, 0, SEEK_SET);
+        retassure(iBSS.first = (char *) malloc(iBSS.second), "failed to malloc memory for Rose\n");
+        size_t freadRet = 0;
+        retassure((freadRet = fread((char *) iBSS.first, 1, iBSS.second, ibss)) == iBSS.second,
+                  "failed to load iBSS. size=%zu but fread returned %zu\n", iBSS.second, freadRet);
+        fclose(ibss);
+    }
+    ibec = fopen(_iBECPath, "rb");
+    if (ibec) {
+        fseek(ibec, 0, SEEK_END);
+        iBEC.second = ftell(ibec);
+        fseek(ibec, 0, SEEK_SET);
+        retassure(iBEC.first = (char *) malloc(iBEC.second), "failed to malloc memory for Rose\n");
+        size_t freadRet = 0;
+        retassure((freadRet = fread((char *) iBEC.first, 1, iBEC.second, ibec)) == iBEC.second,
+                  "failed to load iBEC. size=%zu but fread returned %zu\n", iBEC.second, freadRet);
+        fclose(ibec);
+    }
+    irecv_error_t err = IRECV_E_UNKNOWN_ERROR;
+    /* send now */
+    info("Sending %s (%lu bytes)...\n", "iBSS", iBSS.second);
+    mutex_lock(&_client->device_event_mutex);
+    err = irecv_send_buffer(_client->dfu->client, (unsigned char *) (char *) iBSS.first,
+                            (unsigned long) iBSS.second, 1);
+    retassure(err == IRECV_E_SUCCESS, "ERROR: Unable to send %s component: %s\n", "iBSS", irecv_strerror(err));
+
+    info("Booting iBSS, waiting for device to disconnect...\n");
+    cond_wait_timeout(&_client->device_event_cond, &_client->device_event_mutex, 10000);
+
+    retassure(((_client->mode == MODE_UNKNOWN) || (mutex_unlock(&_client->device_event_mutex),0)), "Device did not disconnect. Possibly invalid iBSS. Reset device and try again");
+    info("Booting iBSS, waiting for device to reconnect...\n");
+    
+    cond_wait_timeout(&_client->device_event_cond, &_client->device_event_mutex, 10000);
+    retassure(((_client->mode == MODE_DFU) || (mutex_unlock(&_client->device_event_mutex),0)), "Device did not reconnect. Possibly invalid iBSS. Reset device and try again");
+    mutex_unlock(&_client->device_event_mutex);
+    getDeviceMode(true);
+    retassure(((dfu_client_new(_client) == IRECV_E_SUCCESS) || (mutex_unlock(&_client->device_event_mutex),0)), "Failed to connect to device in DFU Mode!");
+    retassure(irecv_usb_set_configuration(_client->dfu->client, 1) >= 0, "ERROR: set configuration failed\n");
+    /* send iBEC */
+    info("Sending %s (%lu bytes)...\n", "iBEC", iBEC.second);
+    mutex_lock(&_client->device_event_mutex);
+    err = irecv_send_buffer(_client->dfu->client, (unsigned char*)(char*)iBEC.first, (unsigned long)iBEC.second, 1);
+    retassure(err == IRECV_E_SUCCESS,"ERROR: Unable to send %s component: %s\n", "iBEC", irecv_strerror(err));
+
+    info("Booting iBEC, waiting for device to disconnect...\n");
+    cond_wait_timeout(&_client->device_event_cond, &_client->device_event_mutex, 10000);
+    retassure(((_client->mode == MODE_UNKNOWN) || (mutex_unlock(&_client->device_event_mutex),0)), "Device did not disconnect. Possibly invalid iBEC. Reset device and try again");
+    info("Booting iBEC, waiting for device to reconnect...\n");
+    cond_wait_timeout(&_client->device_event_cond, &_client->device_event_mutex, 10000);
+    retassure(((_client->mode == MODE_RECOVERY) || (mutex_unlock(&_client->device_event_mutex),0)), "Device did not reconnect. Possibly invalid iBEC. Reset device and try again");
+    mutex_unlock(&_client->device_event_mutex);
+    getDeviceMode(true);
+    retassure(((recovery_client_new(_client) == IRECV_E_SUCCESS) || (mutex_unlock(&_client->device_event_mutex),0)), "Failed to connect to device in Recovery Mode!");
+
+    sleep(2);
+    
+}
+
 void futurerestore::enterPwnRecovery(plist_t build_identity, std::string bootargs){
 #ifndef HAVE_LIBIPATCHER
     reterror("compiled without libipatcher");
@@ -863,7 +943,9 @@ void futurerestore::doRestore(const char *ipsw){
 
 
     if (_enterPwnRecoveryRequested && _client->image4supported) {
-        retassure(plist_dict_get_item(_client->tss, "generator"), "signing ticket file does not contain generator. But a generator is required for 64-bit pwnDFU restore");
+        if(!_ota) {
+            retassure(plist_dict_get_item(_client->tss, "generator"), "signing ticket file does not contain generator. But a generator is required for 64-bit pwnDFU restore");
+        }
     }
     
     retassure(build_identity = getBuildidentityWithBoardconfig(buildmanifest, client->device->hardware_model, _isUpdateInstall),"ERROR: Unable to find any build identities for iPSW\n");
@@ -1046,7 +1128,14 @@ void futurerestore::doRestore(const char *ipsw){
             }
             bootargs.append("-v -restore debug=0x2014e keepsyms=0x1 amfi=0xff amfi_allow_any_signature=0x1 amfi_get_out_of_my_way=0x1 cs_enforcement_disable=0x1");
         }
-        enterPwnRecovery(build_identity, bootargs);
+        if(_ota) {
+            info("Entering PwnRecovery for OTA restore\n");
+            enterPwnRecovery3();
+        }
+        else {
+            info("Entering PwnRecovery\n (_ota = false)");
+            enterPwnRecovery(build_identity, bootargs);
+        }
         irecv_device_event_unsubscribe(_client->irecv_e_ctx);
         _client->idevice_e_ctx = NULL;
         irecv_device_event_subscribe(&client->irecv_e_ctx, irecv_event_cb, _client);
@@ -1740,6 +1829,7 @@ void futurerestore::setiBECPath(const char *iBECPath) {
     _iBECPath = iBECPath;
     fclose(fbb);
 }
+
 void futurerestore::setRamdiskPath(const char *ramdiskPath) {
     FILE *fbb = NULL;
 
