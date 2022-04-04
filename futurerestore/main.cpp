@@ -120,7 +120,6 @@ void cmd_help(){
     printf("  -p, --baseband-manifest PATH\tBuildManifest for requesting baseband ticket\n");
     printf("      --no-baseband\t\tSkip checks and don't flash baseband\n");
     printf("                   \t\tOnly use this for device without a baseband (eg. iPod touch or some Wi-Fi only iPads)\n\n");
-    printf("enterPwnrecovery3()\n");
 }
 
 using namespace std;
