@@ -6,11 +6,7 @@
 //  Copyright © 2016 tihmstar. All rights reserved.
 //
 
-#include <iostream>
 #include <getopt.h>
-#include <string.h>
-#include <unistd.h>
-#include <vector>
 #include "futurerestore.hpp"
 
 extern "C"{
@@ -34,92 +30,104 @@ extern "C"{
 #endif
 
 static struct option longopts[] = {
-        { "apticket",           required_argument,      NULL, 't' },
-        { "baseband",           required_argument,      NULL, 'b' },
-        { "baseband-manifest",  required_argument,      NULL, 'p' },
-        { "sep",                required_argument,      NULL, 's' },
-        { "sep-manifest",       required_argument,      NULL, 'm' },
-        { "wait",               no_argument,            NULL, 'w' },
-        { "update",             no_argument,            NULL, 'u' },
-        { "debug",              no_argument,            NULL, 'd' },
-        { "exit-recovery",      no_argument,            NULL, 'e' },
-        { "latest-sep",         no_argument,            NULL, '0' },
-        { "no-restore",         no_argument,            NULL, 'z' },
-        { "latest-baseband",    no_argument,            NULL, '1' },
-        { "no-baseband",        no_argument,            NULL, '2' },
+        { "apticket",                   required_argument,      nullptr, 't' },
+        { "baseband",                   required_argument,      nullptr, 'b' },
+        { "baseband-manifest",          required_argument,      nullptr, 'p' },
+        { "sep",                        required_argument,      nullptr, 's' },
+        { "sep-manifest",               required_argument,      nullptr, 'm' },
+        { "wait",                       no_argument,            nullptr, 'w' },
+        { "update",                     no_argument,            nullptr, 'u' },
+        { "debug",                      no_argument,            nullptr, 'd' },
+        { "exit-recovery",              no_argument,            nullptr, 'e' },
+        { "custom-latest",              required_argument,      nullptr, 'c' },
+        { "custom-latest-buildid",      required_argument,      nullptr, 'g' },
+        { "help",                       no_argument,            nullptr, 'h' },
+        { "custom-latest-beta",         no_argument,            nullptr, 'i' },
+        { "latest-sep",                 no_argument,            nullptr, '0' },
+        { "no-restore",                 no_argument,            nullptr, 'z' },
+        { "latest-baseband",            no_argument,            nullptr, '1' },
+        { "no-baseband",                no_argument,            nullptr, '2' },
 #ifdef HAVE_LIBIPATCHER
-        { "use-pwndfu",         no_argument,            NULL, '3' },
-        { "no-ibss",            no_argument,            NULL, '4' },
-        { "rdsk",               required_argument,      NULL, '5' },
-        { "rkrn",               required_argument,      NULL, '6' },
-        { "set-nonce",          optional_argument,      NULL, '7' },
-        { "serial",             no_argument,            NULL, '8' },
-        { "boot-args",          required_argument,      NULL, '9' },
-        { "ibss-img4",          required_argument,      NULL, 'g'},
-        { "ibec-img4",          required_argument,      NULL, 'f'},
-        {"ota",                 no_argument,            NULL, 'o'},
-        { "skip-blob",          no_argument,            NULL, 'c' },
+        { "use-pwndfu",                 no_argument,            nullptr, '3' },
+        { "no-ibss",                    no_argument,            nullptr, '4' },
+        { "rdsk",                       required_argument,      nullptr, '5' },
+        { "rkrn",                       required_argument,      nullptr, '6' },
+        { "custom-ibss",                required_argument,      nullptr, 'x'},
+        { "custom-ibec",                required_argument,      nullptr, 'y'},
+        { "set-nonce",                  optional_argument,      nullptr, '7' },
+        { "serial",                     no_argument,            nullptr, '8' },
+        { "boot-args",                  required_argument,      nullptr, '9' },
+        { "no-cache",                   no_argument,            nullptr, 'a' },
+        { "skip-blob",                  no_argument,            nullptr, 'f' },
 #endif
-        { NULL, 0, NULL, 0 }
+        { nullptr, 0, nullptr, 0 }
 };
 
-#define FLAG_WAIT               1 << 0
-#define FLAG_UPDATE             1 << 1
-#define FLAG_LATEST_SEP         1 << 2
-#define FLAG_LATEST_BASEBAND    1 << 3
-#define FLAG_NO_BASEBAND        1 << 4
-#define FLAG_IS_PWN_DFU         1 << 5
-#define FLAG_NO_IBSS            1 << 6
-#define FLAG_RESTORE_RAMDISK    1 << 7
-#define FLAG_RESTORE_KERNEL     1 << 8
-#define FLAG_SET_NONCE          1 << 9
-#define FLAG_SERIAL             1 << 10
-#define FLAG_BOOT_ARGS          1 << 11
-#define FLAG_SKIP_BLOB          1 << 13
-#define FLAG_NO_RESTORE_FR      1 << 14
-#define FLAG_IBSS_IMG4          1 << 15
-#define FLAG_IBEC_IMG4          1 << 16
-#define FLAG_OTA                1 << 17
+#define FLAG_WAIT                   1 << 0
+#define FLAG_UPDATE                 1 << 1
+#define FLAG_LATEST_SEP             1 << 2
+#define FLAG_LATEST_BASEBAND        1 << 3
+#define FLAG_NO_BASEBAND            1 << 4
+#define FLAG_IS_PWN_DFU             1 << 5
+#define FLAG_NO_IBSS                1 << 6
+#define FLAG_RESTORE_RAMDISK        1 << 7
+#define FLAG_RESTORE_KERNEL         1 << 8
+#define FLAG_SET_NONCE              1 << 9
+#define FLAG_SERIAL                 1 << 10
+#define FLAG_BOOT_ARGS              1 << 11
+#define FLAG_NO_CACHE               1 << 12
+#define FLAG_SKIP_BLOB              1 << 13
+#define FLAG_NO_RESTORE_FR          1 << 14
+#define FLAG_CUSTOM_LATEST          1 << 15
+#define FLAG_CUSTOM_LATEST_BUILDID  1 << 16
+#define FLAG_CUSTOM_LATEST_BETA     1 << 17
+#define FLAG_CUSTOM_IBSS            1 << 18
+#define FLAG_CUSTOM_IBEC            1 << 19
+
 
 void cmd_help(){
     printf("Usage: futurerestore [OPTIONS] iPSW\n");
     printf("Allows restoring to non-matching firmware with custom SEP+baseband\n");
     printf("\nGeneral options:\n");
-    printf("  -t, --apticket PATH\t\tSigning tickets used for restoring\n");
-    printf("  -u, --update\t\t\tUpdate instead of erase install (requires appropriate APTicket)\n");
-    printf("              \t\t\tDO NOT use this parameter, if you update from jailbroken firmware!\n");
-    printf("  -w, --wait\t\t\tKeep rebooting until ApNonce matches APTicket (ApNonce collision, unreliable)\n");
-    printf("  -d, --debug\t\t\tShow all code, use to save a log for debug testing\n");
-    printf("  -e, --exit-recovery\t\tExit recovery mode and quit\n");
-    printf("  -z, --no-restore\t\tDo not restore and end right before NOR data is sent\n");
+    printf("  -h, --help\t\t\t\tShows this usage message\n");
+    printf("  -t, --apticket PATH\t\t\tSigning tickets used for restoring\n");
+    printf("  -u, --update\t\t\t\tUpdate instead of erase install (requires appropriate APTicket)\n");
+    printf("              \t\t\t\tDO NOT use this parameter, if you update from jailbroken firmware!\n");
+    printf("  -w, --wait\t\t\t\tKeep rebooting until ApNonce matches APTicket (ApNonce collision, unreliable)\n");
+    printf("  -d, --debug\t\t\t\tShow all code, use to save a log for debug testing\n");
+    printf("  -e, --exit-recovery\t\t\tExit recovery mode and quit\n");
+    printf("  -z, --no-restore\t\t\tDo not restore and end right before NOR data is sent\n");
+    printf("  -c, --custom-latest VERSION\t\tSpecify custom latest version to use for SEP, Baseband and other FirmwareUpdater components\n");
+    printf("  -g, --custom-latest-buildid BUILDID\tSpecify custom latest buildid to use for SEP, Baseband and other FirmwareUpdater components\n");
+    printf("  -i, --custom-latest-beta\t\tGet custom url from list of beta firmwares");
 
 #ifdef HAVE_LIBIPATCHER
     printf("\nOptions for downgrading with Odysseus:\n");
-    printf("      --use-pwndfu\t\tRestoring devices with Odysseus method. Device needs to be in pwned DFU mode already\n");
-    printf("      --no-ibss\t\t\tRestoring devices with Odysseus method. For checkm8/iPwnder32 specifically, bootrom needs to be patched already with unless iPwnder.\n");
-    printf("      --rdsk PATH\t\tSet custom restore ramdisk for entering restoremode(requires use-pwndfu)\n");
-    printf("      --rkrn PATH\t\tSet custom restore kernelcache for entering restoremode(requires use-pwndfu)\n");
-    printf("      --ibss-img4 PATH\t\tSet custom iBSS for entering pwnRecovery(requires use-pwndfu)\n");
-    printf("      --ibec-img4 PATH\t\tSet custom iBEC for entering pwnRecovery(requires use-pwndfu)\n");
-    printf("      --ota\t\tenter pwnRecovery for OTA restore(does not require a generator in signing ticket)(requires --ibss-img4 and --ibec-img4)\n");
-    printf("      --set-nonce\t\tSet custom nonce from your blob then exit recovery(requires use-pwndfu)\n");
-    printf("      --set-nonce=0xNONCE\tSet custom nonce then exit recovery(requires use-pwndfu)\n");
-    printf("      --serial\t\t\tEnable serial during boot(requires serial cable and use-pwndfu)\n");
-    printf("      --boot-args\t\tSet custom restore boot-args(PROCEED WITH CAUTION)(requires use-pwndfu)\n");
-    printf("      --skip-blob\t\tSkip SHSH blob validation(PROCEED WITH CAUTION)(requires use-pwndfu)\n");
+    printf("      --use-pwndfu\t\t\tRestoring devices with Odysseus method. Device needs to be in pwned DFU mode already\n");
+    printf("      --no-ibss\t\t\t\tRestoring devices with Odysseus method. For checkm8/iPwnder32 specifically, bootrom needs to be patched already with unless iPwnder.\n");
+    printf("      --rdsk PATH\t\t\tSet custom restore ramdisk for entering restoremode(requires use-pwndfu)\n");
+    printf("      --rkrn PATH\t\t\tSet custom restore kernelcache for entering restoremode(requires use-pwndfu)\n");
+    printf("      --custom-ibss PATH\t\tSet custom iBSS for entering pwnRecovery(requires use-pwndfu)\n");
+    printf("      --custom-ibec PATH\t\tSet custom iBEC for entering pwnRecovery(requires use-pwndfu)\n");
+    printf("      --set-nonce\t\t\tSet custom nonce from your blob then exit recovery(requires use-pwndfu)\n");
+    printf("      --set-nonce=0xNONCE\t\tSet custom nonce then exit recovery(requires use-pwndfu)\n");
+    printf("      --serial\t\t\t\tEnable serial during boot(requires serial cable and use-pwndfu)\n");
+    printf("      --boot-args\t\t\tSet custom restore boot-args(PROCEED WITH CAUTION)(requires use-pwndfu)\n");
+    printf("      --no-cache\t\t\tDisable cached patched iBSS/iBEC(requires use-pwndfu)\n");
+    printf("      --skip-blob\t\t\tSkip SHSH blob validation(PROCEED WITH CAUTION)(requires use-pwndfu)\n");
 #endif
 
     printf("\nOptions for SEP:\n");
-    printf("      --latest-sep\t\tUse latest signed SEP instead of manually specifying one\n");
-    printf("  -s, --sep PATH\t\tSEP to be flashed\n");
-    printf("  -m, --sep-manifest PATH\tBuildManifest for requesting SEP ticket\n");
+    printf("      --latest-sep\t\t\tUse latest signed SEP instead of manually specifying one\n");
+    printf("  -s, --sep PATH\t\t\tSEP to be flashed\n");
+    printf("  -m, --sep-manifest PATH\t\tBuildManifest for requesting SEP ticket\n");
 
     printf("\nOptions for baseband:\n");
-    printf("      --latest-baseband\t\tUse latest signed baseband instead of manually specifying one\n");
-    printf("  -b, --baseband PATH\t\tBaseband to be flashed\n");
-    printf("  -p, --baseband-manifest PATH\tBuildManifest for requesting baseband ticket\n");
-    printf("      --no-baseband\t\tSkip checks and don't flash baseband\n");
-    printf("                   \t\tOnly use this for device without a baseband (eg. iPod touch or some Wi-Fi only iPads)\n\n");
+    printf("      --latest-baseband\t\t\tUse latest signed baseband instead of manually specifying one\n");
+    printf("  -b, --baseband PATH\t\t\tBaseband to be flashed\n");
+    printf("  -p, --baseband-manifest PATH\t\tBuildManifest for requesting baseband ticket\n");
+    printf("      --no-baseband\t\t\tSkip checks and don't flash baseband\n");
+    printf("                   \t\t\tOnly use this for device without a baseband (eg. iPod touch or some Wi-Fi only iPads)\n\n");
 }
 
 using namespace std;
@@ -132,51 +140,51 @@ int main_r(int argc, const char * argv[]) {
         SetConsoleMode(handle, termFlags | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
 #endif
     int err=0;
-    printf("Version: " VERSION_RELEASE "(" VERSION_COMMIT_SHA "-" VERSION_COMMIT_COUNT ")\n");
+    printf("Specific for ra1nstorm\n");
     printf("%s\n",tihmstar::img4tool::version());
 #ifdef HAVE_LIBIPATCHER
     printf("%s\n",libipatcher::version());
     printf("Odysseus for 32-bit support: yes\n");
     printf("Odysseus for 64-bit support: %s\n",(libipatcher::has64bitSupport() ? "yes" : "no"));
-    printf("Custom bootchain: yes\n");
 #else
     printf("Odysseus support: no\n");
 #endif
 
     int optindex = 0;
-    int opt = 0;
+    int opt;
     long flags = 0;
     bool exitRecovery = false;
-    bool noRestore = false;
-    bool ota = false;
 
-    int isSepManifestSigned = 0;
-    int isBasebandSigned = 0;
-
-    const char *ipsw = NULL;
-    const char *basebandPath = NULL;
-    const char *basebandManifestPath = NULL;
-    const char *sepPath = NULL;
-    const char *sepManifestPath = NULL;
-    const char *bootargs = NULL;
-    const char *ramdiskPath = NULL;
-    const char *kernelPath = NULL;
-    const char *ibsspath = NULL;
-    const char *ibecpath = NULL;
-    const char *custom_nonce = NULL;
+    const char *ipsw = nullptr;
+    const char *basebandPath = nullptr;
+    const char *basebandManifestPath = nullptr;
+    const char *sepPath = nullptr;
+    const char *sepManifestPath = nullptr;
+    const char *bootargs = nullptr;
+    std::string customLatest;
+    std::string customLatestBuildID;
+    const char *ramdiskPath = nullptr;
+    const char *kernelPath = nullptr;
+    const char *iBSSPath = nullptr;
+    const char *iBECPath = nullptr;
+    const char *custom_nonce = nullptr;
 
     vector<const char*> apticketPaths;
 
-    t_devicevals devVals = {0};
-    t_iosVersion versVals = {0};
+    t_devicevals devVals = {nullptr};
+    t_iosVersion versVals = {nullptr};
 
     if (argc == 1){
         cmd_help();
         return -1;
     }
 
-    while ((opt = getopt_long(argc, (char* const *)argv, "ht:b:p:s:m:wudez0123456789ac", longopts, &optindex)) > 0) {
+    while ((opt = getopt_long(argc, (char* const *)argv, "ht:b:p:s:m:c:g:hiwude0z123456789af", longopts, &optindex)) > 0) {
         switch (opt) {
+            case 'h': // long option: "help"; can be called as short option
+                cmd_help();
+                return 0;
+                break;
             case 't': // long option: "apticket"; can be called as short option
                 apticketPaths.push_back(optarg);
                 break;
@@ -197,6 +205,17 @@ int main_r(int argc, const char * argv[]) {
                 break;
             case 'u': // long option: "update"; can be called as short option
                 flags |= FLAG_UPDATE;
+                break;
+            case 'c': // long option: "custom-latest"; can be called as short option
+                customLatest = (optarg) ? std::string(optarg) : std::string("");
+                flags |= FLAG_CUSTOM_LATEST;
+                break;
+            case 'g': // long option: "custom-latest-buildid"; can be called as short option
+                customLatestBuildID = (optarg) ? std::string(optarg) : std::string("");
+                flags |= FLAG_CUSTOM_LATEST_BUILDID;
+                break;
+            case 'i': // long option: "custom-latest-beta"; can be called as short option
+                flags |= FLAG_CUSTOM_LATEST_BETA;
                 break;
             case '0': // long option: "latest-sep";
                 flags |= FLAG_LATEST_SEP;
@@ -222,13 +241,21 @@ int main_r(int argc, const char * argv[]) {
                 flags |= FLAG_RESTORE_KERNEL;
                 kernelPath = optarg;
                 break;
+            case 'x': // long option: "ibss-img4"
+                flags |= FLAG_CUSTOM_IBSS;
+                iBSSPath = optarg;
+                break;
+            case 'y': // long option: "ibec-img4"
+                flags |= FLAG_CUSTOM_IBEC;
+                iBECPath = optarg;
+                break;
             case '7': // long option: "set-nonce";
                 flags |= FLAG_SET_NONCE;
-                custom_nonce = (optarg) ? optarg : NULL;
-                if(custom_nonce != NULL) {
+                custom_nonce = (optarg) ? optarg : nullptr;
+                if(custom_nonce != nullptr) {
                     uint64_t gen;
                     retassure(strlen(custom_nonce) == 16 || strlen(custom_nonce) == 18,"Incorrect nonce length!\n");
-                    sscanf(custom_nonce, "0x%16llx",&gen);
+                    gen = std::stoul(custom_nonce, nullptr, 16);
                     retassure(gen, "failed to parse generator. Make sure it is in format 0x%16llx");
                 }
                 break;
@@ -237,23 +264,14 @@ int main_r(int argc, const char * argv[]) {
                 break;
             case '9': // long option: "boot-args";
                 flags |= FLAG_BOOT_ARGS;
-                bootargs = (optarg) ? optarg : NULL;
+                bootargs = (optarg) ? optarg : nullptr;
                 break;
-            case 'c': // long option: "skip-blob";
+            case 'a': // long option: "no-cache";
+                flags |= FLAG_NO_CACHE;
+                break;
+            case 'f': // long option: "skip-blob";
                 flags |= FLAG_SKIP_BLOB;
                 break;
-            case 'g': // long option: "ibss-img4"
-                flags |= FLAG_IBSS_IMG4;
-                ibsspath = optarg;
-                break;
-            case 'f': // long option: "ibec-img4"
-                flags |= FLAG_IBEC_IMG4;
-                ibecpath = optarg;
-                break;
-            case 'o': // long option: "ota"
-                flags |= FLAG_OTA;
-                break;
-                
 #endif
             case 'e': // long option: "exit-recovery"; can be called as short option
                 exitRecovery = true;
@@ -271,7 +289,6 @@ int main_r(int argc, const char * argv[]) {
     }
 
     if (argc-optind == 1) {
-        argc -= optind;
         argv += optind;
 
         ipsw = argv[0];
@@ -289,7 +306,7 @@ int main_r(int argc, const char * argv[]) {
         return -5;
     }
 
-    futurerestore client(flags & FLAG_UPDATE, flags & FLAG_IS_PWN_DFU, flags & FLAG_NO_IBSS, flags & FLAG_SET_NONCE, flags & FLAG_SERIAL, flags & FLAG_NO_RESTORE_FR);
+    futurerestore client(flags & FLAG_UPDATE, flags & FLAG_IS_PWN_DFU, flags & FLAG_NO_IBSS, flags & FLAG_SET_NONCE, flags & FLAG_SERIAL, flags & FLAG_NO_RESTORE_FR, ((flags & FLAG_CUSTOM_IBSS) && (flags & FLAG_CUSTOM_IBEC)));
     retassure(client.init(),"can't init, no device found\n");
 
     printf("futurerestore init done\n");
@@ -299,34 +316,34 @@ int main_r(int argc, const char * argv[]) {
         retassure((flags & FLAG_IS_PWN_DFU),"--rdsk requires --use-pwndfu\n");
     if(flags & FLAG_RESTORE_KERNEL)
         retassure((flags & FLAG_IS_PWN_DFU),"--rkrn requires --use-pwndfu\n");
-    if(flags & FLAG_IBSS_IMG4)
-        retassure((flags & FLAG_IS_PWN_DFU), "--ibss-img4 requires --use-pwndfu\n");
-    if(flags & FLAG_IBEC_IMG4)
-        retassure((flags & FLAG_IS_PWN_DFU), "--ibec-img4 requires --use-pwndfu\n");
+    if(flags & FLAG_CUSTOM_IBSS)
+            retassure((flags & FLAG_IS_PWN_DFU), "--custom-ibss requires --use-pwndfu\n");
+        if(flags & FLAG_CUSTOM_IBEC)
+            retassure((flags & FLAG_IS_PWN_DFU), "--custom-ibec requires --use-pwndfu\n");
     if(flags & FLAG_SET_NONCE)
         retassure((flags & FLAG_IS_PWN_DFU),"--set-nonce requires --use-pwndfu\n");
     if(flags & FLAG_SET_NONCE && client.is32bit())
         error("--set-nonce not supported on 32bit devices.\n");
     if(flags & FLAG_RESTORE_RAMDISK)
         retassure((flags & FLAG_RESTORE_KERNEL),"--rdsk requires --rkrn\n");
-    if(flags & FLAG_RESTORE_KERNEL)
-        retassure((flags & FLAG_RESTORE_RAMDISK),"--rkrn requires --rdsk\n");
-    if(flags & FLAG_IBSS_IMG4)
-        retassure((flags & FLAG_IBEC_IMG4), "--ibss-img4 requires --ibec-img4\n");
-    if(flags & FLAG_IBEC_IMG4)
-        retassure((flags & FLAG_IBSS_IMG4), "--ibec-img4 requires --ibss-img4\n");
-    if(flags & FLAG_OTA)
-        retassure((flags & FLAG_IBSS_IMG4), "--ota requires --ibss-img4\n");
-    if(flags & FLAG_OTA)
-        retassure((flags & FLAG_IBEC_IMG4), "--ota requires --ibec-img4\n");
+    if(flags & FLAG_CUSTOM_IBSS)
+            retassure((flags & FLAG_CUSTOM_IBEC), "--ibss-img4 requires --ibec-img4\n");
+        if(flags & FLAG_CUSTOM_IBEC)
+            retassure((flags & FLAG_CUSTOM_IBSS), "--ibec-img4 requires --ibss-img4\n");
     if(flags & FLAG_SERIAL) {
         retassure((flags & FLAG_IS_PWN_DFU),"--serial requires --use-pwndfu\n");
         retassure(!(flags & FLAG_BOOT_ARGS),"--serial conflicts with --boot-args\n");
     }
     if(flags & FLAG_BOOT_ARGS)
         retassure((flags & FLAG_IS_PWN_DFU),"--boot-args requires --use-pwndfu\n");
+    if(flags & FLAG_NO_CACHE)
+        retassure((flags & FLAG_IS_PWN_DFU),"--no-cache requires --use-pwndfu\n");
     if(flags & FLAG_SKIP_BLOB)
         retassure((flags & FLAG_IS_PWN_DFU),"--skip-blob requires --use-pwndfu\n");
+    if(flags & FLAG_CUSTOM_LATEST_BETA)
+        retassure((flags & FLAG_CUSTOM_LATEST_BUILDID),"-i, --custom-latest-beta requires -g, --custom-latest-buildid\n");
+    if(flags & FLAG_CUSTOM_LATEST_BUILDID)
+        retassure((flags & FLAG_CUSTOM_LATEST) == 0,"-g, --custom-latest-buildid is not compatible with -c, --custom-latest\n");
 
     if (exitRecovery) {
         client.exitRecovery();
@@ -335,10 +352,19 @@ int main_r(int argc, const char * argv[]) {
     }
 
     try {
-        if (apticketPaths.size()) client.loadAPTickets(apticketPaths);
+        if (!apticketPaths.empty()) {
+            client.loadAPTickets(apticketPaths);
+        }
+
+        if(!customLatest.empty()) {
+            client.setCustomLatest(customLatest);
+        }
+        if(!customLatestBuildID.empty()) {
+            client.setCustomLatestBuildID(customLatestBuildID, (flags & FLAG_CUSTOM_LATEST_BETA) != 0);
+        }
 
         if (!(
-                ((apticketPaths.size() && ipsw)
+                ((!apticketPaths.empty() && ipsw)
                  && ((basebandPath && basebandManifestPath) || ((flags & FLAG_LATEST_BASEBAND) || (flags & FLAG_NO_BASEBAND)))
                  && ((sepPath && sepManifestPath) || (flags & FLAG_LATEST_SEP) || client.is32bit())
                 ) || (ipsw && (flags & FLAG_IS_PWN_DFU))
@@ -368,44 +394,44 @@ int main_r(int argc, const char * argv[]) {
             client.setKernelPath(kernelPath);
             client.loadKernel(kernelPath);
         }
+        
+        if(flags & FLAG_CUSTOM_IBSS) {
+            client.setiBSSPath(iBSSPath);
+        }
+        
+        if(flags & FLAG_CUSTOM_IBEC) {
+            client.setiBECPath(iBECPath);
+        }
 
-        if(flags & FLAG_IBSS_IMG4) {
-            client.setiBSSbool();
-            client.setiBSSPath(ibsspath);
-        }
-        
-        if(flags & FLAG_IBEC_IMG4) {
-            client.setiBECbool();
-            client.setiBECPath(ibecpath);
-        }
-        
-        if(flags & FLAG_OTA) {
-            client.setOTAbool();
-        }
-        
         if(flags & FLAG_SET_NONCE) {
-            client.setNonce(custom_nonce);
+            reterror("--set-nonce is not implemented in this fork\n");
+            return -1;
         }
-        
+
         if(flags & FLAG_BOOT_ARGS) {
             client.setBootArgs(bootargs);
+        }
+
+        if(flags & FLAG_NO_CACHE) {
+            client.disableCache();
         }
 
         if(flags & FLAG_SKIP_BLOB) {
             client.skipBlobValidation();
         }
-        
-        
+
         if (flags & FLAG_LATEST_SEP){
             info("user specified to use latest signed SEP\n");
-            client.loadLatestSep();
+            client.downloadLatestSep();
         }else if (!client.is32bit()){
-            client.loadSep(sepPath);
+            client.setSepPath(sepPath);
             client.setSepManifestPath(sepManifestPath);
+            client.loadSep(sepPath);
+            client.loadSepManifest(sepManifestPath);
         }
 
         versVals.basebandMode = kBasebandModeWithoutBaseband;
-        if (!client.is32bit() && !(isSepManifestSigned = isManifestSignedForDevice(client.sepManifestPath(), &devVals, &versVals, NULL))){
+        if (!client.is32bit() && !(isManifestSignedForDevice(client.getSepManifestPath().c_str(), &devVals, &versVals, nullptr))){
             reterror("SEP firmware is NOT being signed!\n");
         }
         if (flags & FLAG_NO_BASEBAND){
@@ -422,10 +448,12 @@ int main_r(int argc, const char * argv[]) {
         }else{
             if (flags & FLAG_LATEST_BASEBAND){
                 info("user specified to use latest signed baseband\n");
-                client.loadLatestBaseband();
-            }else {
+                client.downloadLatestBaseband();
+            }else{
                 client.setBasebandPath(basebandPath);
                 client.setBasebandManifestPath(basebandManifestPath);
+                client.loadBaseband(basebandPath);
+                client.loadBasebandManifest(basebandManifestPath);
                 printf("Did set SEP+baseband path and firmware\n");
             }
 
@@ -433,7 +461,7 @@ int main_r(int argc, const char * argv[]) {
             if (!(devVals.bbgcid = client.getBasebandGoldCertIDFromDevice())){
                 printf("[WARNING] using tsschecker's fallback to get BasebandGoldCertID. This might result in invalid baseband signing status information\n");
             }
-            if (!(isBasebandSigned = isManifestSignedForDevice(client.basebandManifestPath(), &devVals, &versVals, NULL))) {
+            if (!(isManifestSignedForDevice(client.getBasebandManifestPath().c_str(), &devVals, &versVals, nullptr))) {
                 reterror("baseband firmware is NOT being signed!\n");
             }
         }
