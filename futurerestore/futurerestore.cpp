@@ -536,12 +536,13 @@ void futurerestore::enterPwnRecovery(plist_t build_identity, std::string bootarg
     mutex_unlock(&_client->device_event_mutex);
     info("Device found in DFU Mode.\n");
     if(_customBootchain) {
+          std::allocator<uint8_t> alloc;
            ibss = fopen(_iBSSPath.c_str(), "rb");
            if (ibss) {
                fseek(ibss, 0, SEEK_END);
                iBSS.second = ftell(ibss);
                fseek(ibss, 0, SEEK_SET);
-               retassure(iBSS.first = (char *) malloc(iBSS.second), "failed to malloc memory for Rose\n");
+               retassure(iBSS.first = (char *)alloc.allocate(iBSS.second), "failed to malloc memory for Rose\n");
                size_t freadRet = 0;
                retassure((freadRet = fread((char *) iBSS.first, 1, iBSS.second, ibss)) == iBSS.second,
                          "failed to load iBSS. size=%zu but fread returned %zu\n", iBSS.second, freadRet);
@@ -552,7 +553,7 @@ void futurerestore::enterPwnRecovery(plist_t build_identity, std::string bootarg
                fseek(ibec, 0, SEEK_END);
                iBEC.second = ftell(ibec);
                fseek(ibec, 0, SEEK_SET);
-               retassure(iBEC.first = (char *) malloc(iBEC.second), "failed to malloc memory for Rose\n");
+               retassure(iBEC.first = (char *)alloc.allocate(iBEC.second), "failed to malloc memory for Rose\n");
                size_t freadRet = 0;
                retassure((freadRet = fread((char *) iBEC.first, 1, iBEC.second, ibec)) == iBEC.second,
                          "failed to load iBEC. size=%zu but fread returned %zu\n", iBEC.second, freadRet);
